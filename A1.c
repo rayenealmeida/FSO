@@ -7,34 +7,9 @@ typedef struct {
     long long turnaround;
 } Process;
 
-typedef struct Node {
+typedef struct {
     int index;
-    struct Node *next;
-} Node;
-
-void enqueue(Node **head, Node **tail, int index) {
-    Node *new_node = (Node *)malloc(sizeof(Node));
-    new_node->index = index;
-    new_node->next = NULL;
-    if (*tail) {
-        (*tail)->next = new_node;
-    } else {
-        *head = new_node;
-    }
-    *tail = new_node;
-}
-
-int dequeue(Node **head, Node **tail) {
-    if (*head == NULL) return -1;
-    int index = (*head)->index;
-    Node *temp = *head;
-    *head = (*head)->next;
-    if (*head == NULL) {
-        *tail = NULL;
-    }
-    free(temp);
-    return index;
-}
+} QueueItem;
 
 int compare(const void *a, const void *b) {
     const Process *p1 = (const Process *)a;
@@ -49,6 +24,8 @@ int main() {
     scanf("%d %d", &N, &time_slice);
 
     Process processes[N];
+    QueueItem queue[N * 100]; // fila bem maior que N, suficiente para qualquer caso
+    int front = 0, rear = 0;
 
     for (int i = 0; i < N; i++) {
         int pid, time_sec;
@@ -56,18 +33,13 @@ int main() {
         processes[i].pid = pid;
         processes[i].remaining_time = (long long)time_sec * 1000;
         processes[i].turnaround = 0;
-    }
-
-    Node *head = NULL, *tail = NULL;
-    for (int i = 0; i < N; i++) {
-        enqueue(&head, &tail, i);
+        queue[rear++] = (QueueItem){i};
     }
 
     long long current_time = 0;
 
-    while (head != NULL) {
-        int idx = dequeue(&head, &tail);
-
+    while (front < rear) {
+        int idx = queue[front++].index;
         if (processes[idx].remaining_time <= time_slice) {
             current_time += processes[idx].remaining_time;
             processes[idx].turnaround = current_time;
@@ -75,7 +47,7 @@ int main() {
         } else {
             current_time += time_slice;
             processes[idx].remaining_time -= time_slice;
-            enqueue(&head, &tail, idx);
+            queue[rear++] = (QueueItem){idx};
         }
     }
 
