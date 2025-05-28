@@ -3,59 +3,88 @@
 
 typedef struct {
     int pid;
-    long long remaining_time;
-    long long turnaround;
+    long remaining_time_ms;
 } Process;
 
 typedef struct {
-    int index;
-} QueueItem;
+    Process *data;
+    int front;
+    int rear;
+    int size;
+    int capacity;
+} Queue;
 
-int compare(const void *a, const void *b) {
-    const Process *p1 = (const Process *)a;
-    const Process *p2 = (const Process *)b;
-    if (p1->turnaround < p2->turnaround) return -1;
-    if (p1->turnaround > p2->turnaround) return 1;
-    return 0;
+Queue* createQueue(int capacity) {
+    Queue *q = (Queue*) malloc(sizeof(Queue));
+    q->capacity = capacity;
+    q->front = 0;
+    q->size = 0;
+    q->rear = capacity - 1;
+    q->data = (Process*) malloc(capacity * sizeof(Process));
+    return q;
+}
+
+int isEmpty(Queue *q) {
+    return (q->size == 0);
+}
+
+void enqueue(Queue *q, Process item) {
+    if (q->size == q->capacity) return; 
+    q->rear = (q->rear + 1) % q->capacity;
+    q->data[q->rear] = item;
+    q->size++;
+}
+
+Process dequeue(Queue *q) {
+    Process item = q->data[q->front];
+    q->front = (q->front + 1) % q->capacity;
+    q->size--;
+    return item;
 }
 
 int main() {
-    int N, time_slice;
-    scanf("%d %d", &N, &time_slice);
+    int n;
+    long quantum_ms;
 
-    Process processes[N];
-    QueueItem queue[N * 100]; // fila bem maior que N, suficiente para qualquer caso
-    int front = 0, rear = 0;
+    scanf("%d", &n);
+    scanf("%ld", &quantum_ms);
 
-    for (int i = 0; i < N; i++) {
-        int pid, time_sec;
-        scanf("%d %d", &pid, &time_sec);
-        processes[i].pid = pid;
-        processes[i].remaining_time = (long long)time_sec * 1000;
-        processes[i].turnaround = 0;
-        queue[rear++] = (QueueItem){i};
+    Queue *q = createQueue(n);
+
+    for (int i = 0; i < n; i++) {
+        int pid;
+        long t;
+        scanf("%d %ld", &pid, &t);
+        Process p;
+        p.pid = pid;
+        p.remaining_time_ms = t * 1000;
+        enqueue(q, p);
     }
 
-    long long current_time = 0;
+    long current_time = 0;
+    Process finished_order[n];
+    int finish_count = 0;
 
-    while (front < rear) {
-        int idx = queue[front++].index;
-        if (processes[idx].remaining_time <= time_slice) {
-            current_time += processes[idx].remaining_time;
-            processes[idx].turnaround = current_time;
-            processes[idx].remaining_time = 0;
+    while (!isEmpty(q)) {
+        Process p = dequeue(q);
+        if (p.remaining_time_ms <= quantum_ms) {
+            current_time += p.remaining_time_ms;
+            p.remaining_time_ms = 0;
+            finished_order[finish_count++] = p;
+            finished_order[finish_count - 1].remaining_time_ms = current_time; 
         } else {
-            current_time += time_slice;
-            processes[idx].remaining_time -= time_slice;
-            queue[rear++] = (QueueItem){idx};
+            current_time += quantum_ms;
+            p.remaining_time_ms -= quantum_ms;
+            enqueue(q, p);
         }
     }
 
-    qsort(processes, N, sizeof(Process), compare);
-
-    for (int i = 0; i < N; i++) {
-        printf("%d (%lld)\n", processes[i].pid, processes[i].turnaround);
+    for (int i = 0; i < finish_count; i++) {
+        printf("%d (%ld)\n", finished_order[i].pid, finished_order[i].remaining_time_ms);
     }
+
+    free(q->data);
+    free(q);
 
     return 0;
 }

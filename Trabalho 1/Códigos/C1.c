@@ -1,62 +1,48 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <errno.h>
 #include <string.h>
 
+struct timeval inicio, overall_start, overall_end;
+int error = 0, flag = 0;
+
 int main() {
-    char command_path[256];
-    char argument[256];
-    double total_elapsed_time = 0.0;
-
-    while (1) {
-        if (fgets(command_path, sizeof(command_path), stdin) == NULL) {
-            break;
+    char PATH[256], arg[256];
+    while(scanf("%s %s", PATH, arg) != EOF){
+        if(flag == 0){
+            gettimeofday(&overall_start, NULL);
+            flag++;
         }
-        command_path[strcspn(command_path, "\n")] = 0;
-
-        if (fgets(argument, sizeof(argument), stdin) == NULL) {
-            break;
-        }
-        argument[strcspn(argument, "\n")] = 0;
-
-        struct timeval start_time, end_time;
-        pid_t pid;
-        int status;
-        double elapsed_time;
-
-        gettimeofday(&start_time, NULL);
-        pid = fork();
-
-        if (pid == -1) {
-            perror("fork");
-            continue;
-        } else if (pid == 0) {
-            execl(command_path, command_path, argument, NULL);
-            _exit(errno);
-        } else {
-            wait(&status);
-            gettimeofday(&end_time, NULL);
-
-            elapsed_time = (end_time.tv_sec - start_time.tv_sec) +
-                           (end_time.tv_usec - start_time.tv_usec) / 1000000.0;
-
-            if (WIFEXITED(status)) {
-                int return_code = WEXITSTATUS(status);
-                printf("> Demorou %.1f segundos, retornou %d\n", elapsed_time, return_code);
-                total_elapsed_time += elapsed_time;
-            } else if (WIFSIGNALED(status)) {
-                printf("> Demorou %.1f segundos, retornou %d\n", elapsed_time, WTERMSIG(status) + 128);
-            } else {
-                printf("> Demorou %.1f segundos, retornou %d\n", elapsed_time, -1); 
-                total_elapsed_time += elapsed_time;
+        gettimeofday(&inicio, NULL);
+        
+        fflush(stdout);
+        int pid = fork();
+        
+        if (pid==0) {
+            execl(PATH, PATH, arg, NULL);
+            if (strcmp(strerror(errno), "Success") != 0){
+                printf("> Erro: %s\n", strerror(errno));
+                fflush(stdout);
+                error = errno;
+                fclose(stdin);
+                exit(errno);
             }
         }
+        if (waitpid(pid, &error, WUNTRACED)) {
+            error = WEXITSTATUS(error);
+            struct timeval final;
+            gettimeofday(&final, NULL);
+            printf("> Demorou %.1lf segundos, retornou %d\n", (double)(final.tv_usec - inicio.tv_usec) / 1000000 + (double)(final.tv_sec - inicio.tv_sec), error);
+            fflush(stdout);
+        }
     }
+    gettimeofday(&overall_end, NULL);
 
-    printf(">> O tempo total foi de %.1f segundos\n", total_elapsed_time);
-
-    return 0;
+    printf(">> O tempo total foi de %.1lf segundos\n", (double)(overall_end.tv_usec - overall_start.tv_usec) / 1000000 + (double)(overall_end.tv_sec - overall_start.tv_sec));
+    fflush(stdout);
+    exit(0);
 }
